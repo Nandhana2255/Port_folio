@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 const N_FRAMES = 64
+const FRAME_WIDTH = 1280
+const FRAME_HEIGHT = 720
 const ANGLE_SMOOTHING_MS = 105
 const DEADZONE_RADIUS = 0.12    // 12% of viewport diagonal = eye-contact zone
 
@@ -86,15 +88,15 @@ export default function CharacterCanvas() {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // ── Sizing helper: match canvas buffer to CSS display size × DPR ──
+    // Keep at least one backing pixel per source pixel in the visible crop.
     function syncSize() {
       const cvs = canvasRef.current
       if (!cvs) return
-      // Use getBoundingClientRect to get the CSS size in logical pixels
-      const r = cvs.getBoundingClientRect()
-      const dpr = window.devicePixelRatio || 1
-      const W = Math.round(r.width * dpr)
-      const H = Math.round(r.height * dpr)
+      const rect = cvs.getBoundingClientRect()
+      const sourceScale = Math.max(rect.width / FRAME_WIDTH, rect.height / FRAME_HEIGHT)
+      const renderScale = Math.max(window.devicePixelRatio || 1, 1 / sourceScale)
+      const W = Math.round(rect.width * renderScale)
+      const H = Math.round(rect.height * renderScale)
       if (cvs.width !== W || cvs.height !== H) {
         cvs.width = W
         cvs.height = H
@@ -116,17 +118,17 @@ export default function CharacterCanvas() {
       previousFrameTime = timestamp
       const smoothing = 1 - Math.exp(-elapsed / ANGLE_SMOOTHING_MS)
 
-      const dpr = window.devicePixelRatio || 1
-      // Logical pixel dimensions (CSS size):
-      const W = cvs.width / dpr
-      const H = cvs.height / dpr
+      const rect = cvs.getBoundingClientRect()
+      const W = rect.width
+      const H = rect.height
 
       const ctx = cvs.getContext('2d', { alpha: false })
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)   // reset to DPR scale every frame
+      ctx.setTransform(cvs.width / W, 0, 0, cvs.height / H, 0, 0)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
 
       // ── Face center in screen (viewport) coords ──
       // The face sits near the center of the full-viewport frame.
-      const rect = cvs.getBoundingClientRect()
       const faceCx = rect.left + rect.width * 0.50
       const faceCy = rect.top + rect.height * 0.38
 
